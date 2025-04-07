@@ -24,7 +24,7 @@ void SalvarDados(const char *nome_arquivo, Processo *V, int size);
 void extrairMultivalorados(char *str, int *values, int *count);
 void extrairData(char *str, Data *data);
 
-// Fun√ß√µes de ordena√ß√£o;
+// FunÁıes de ordenaÁ„o;
 void swap(Processo *a, Processo *b);
 int partionById(Processo *V, int inf, int sup);
 int partionByData(Processo *V, int inf, int sup);
@@ -38,47 +38,95 @@ int countIdAssuntos(Processo *V, int size);
 void listProcessosHaveManyAssuntos(Processo *V, int size);
 
 // Datas;
-long calcular_diferenca_segundos(Data data_inicio, Data data_fim);
-void calcular_tramitacao_por_id(Processo *processos, int size, int id_processo);
+long calcDifSecs(Data data_inicio, Data data_fim);
+void calcTramitacaoByID(Processo *processos, int size, int id_processo);
+
+void pause();
 
 int main() {
 	int size;
-    Processo *dados = LerDados("processos.csv", &size);
+    Processo *dados = LerDados("processo_043_202409032338.csv", &size);
 
     printf("Foram lidos %d processos\n", size);
-    //calcular_tramitacao_por_id(dados, size, 405286372);
 
-    qSortById(dados, 0, size - 1);
-    SalvarDados("processos-order-by-id.csv", dados, size);
+    int res;
+    do {
+        printf("\nEscolha uma opÁ„o:");
+        printf("\n1 - Ordenar em ordem crescente pelo 'id'");
+        printf("\n2 - Ordenar em ordem decrescente pelo 'data_ajuizamento'");
+        printf("\n3 - Contar processos vinculados a um determinado 'id_classe'");
+        printf("\n4 - Contar quantos 'id_assuntos' existem na base de dados");
+        printf("\n5 - Listar processos com mais de um 'id_assunto'");
+        printf("\n6 - Calcular dias de tramitaÁ„o de um processo");
+        printf("\n0 - Sair");
+        printf("\n> ");
+        scanf("%d", &res);
 
-    qSortByData(dados, 0, size - 1);
-    SalvarDados("processos-order-by-data.csv", dados, size);
+        switch(res) {
+            case 1: {
+                qSortById(dados, 0, size - 1);
+                printf("Dados organizado por 'id' com sucesso\n");
+                SalvarDados("processos-order-by-id.csv", dados, size);
+                pause();
+                break;
+            }
+            case 2: {
+                qSortByData(dados, 0, size - 1);
+                printf("Dados organizado por 'data_ajuizamento' com sucesso\n");
+                SalvarDados("processos-order-by-data.csv", dados, size);
+                pause();
+                break;
+            }
+            case 3: {
+                int id = 0;
+                do {
+                    printf("\nDigite o ID da Classe que deseja verificar: ");
+                    printf("\nUtilize '0' para voltar;");
+                    printf("\n> ");
+                    scanf("%d", &id);
+                    if (id == 0) break;
 
-    //listProcessosHaveManyAssuntos(dados, size);
+                    int count = countProcessosLinkedIdClasse(dados, size, id);
+                    if (count == 0) {
+                        printf("Nenhum processo foi encontrado vinculado com esse ID\n");
+                    } else {
+                        printf("%d processo(s) est„o vinculados ao 'id_classe' %d\n", count, id);
+                    }
+                    pause();
+                } while(id != 0);
+                break;
+            }
+            case 4: {
+                int count = countIdAssuntos(dados, size);
+                printf("%d 'id_assuntos' constam nos processos presentes na base de dados.\n", count);
+                pause();
+                break;
+            }
+            case 5:
+                listProcessosHaveManyAssuntos(dados, size);
+                pause();
+                break;
+            case 6: {
+                int id;
+                do {
+                    printf("\nDigite o ID do Processo que deseja verificar: ");
+                    printf("\nUtilize '0' para voltar;");
+                    printf("\n> ");
+                    scanf("%d", &id);
+                    if(id == 0) break;
 
-    //int id_classe = 12554, count = countProcessosLinkedIdClasse(dados, size, id_classe);
-
-    //printf("%d Processos estao vinculados com o ID Classe: %d", count, id_classe);
-
-    /*
-    for (int i = 0; i < 20; i++) {
-        printf("Linha: %d\nID: %d\nNumero: %s", i + 2, dados[i].id, dados[i].numero);
-
-        printf("\nData: %d-%d-%d %d:%d:%d.000", dados[i].data_ajuizamento.ano, dados[i].data_ajuizamento.mes, dados[i].data_ajuizamento.dia, dados[i].data_ajuizamento.hora, dados[i].data_ajuizamento.min, dados[i].data_ajuizamento.sec);
-
-        printf("\nID Classes: ");
-        for (int j = 0; j < dados[i].qtd_classes; j++) {
-            printf("%d ", dados[i].id_classes[j]);
+                    calcTramitacaoByID(dados, size, id);
+                    pause();
+                } while(id != 0);
+                break;
+            }
+            case 0:
+                printf("Encerrando o programa...\n");
+                break;
+            default:
+                printf("OpÁ„o inv·lida. Tente novamente.\n");
         }
-
-        printf("\nID Assuntos: ");
-        for (int j = 0; j < dados[i].qtd_assuntos; j++) {
-            printf("%d ", dados[i].id_assuntos[j]);
-        }
-        printf("\nAno Eleicao: %d", dados[i].ano_eleicao);
-        printf("\n\n");
-    }
-    */
+    } while(res != 0);
 
     free(dados);
     return 0;
@@ -94,12 +142,13 @@ Processo *LerDados(const char *NomeArquivo, int *quantidade) {
     int capacidade = 20;
 	Processo *X = malloc(capacidade * sizeof(Processo));
 	if (!X) {
-        printf("Erro ao alocar mem√≥ria!\n");
+        printf("Erro ao alocar memÛria!\n");
         fclose(fp);
         return NULL;
     }
 
     char linha[100];
+    // Exclui o cabeÁalho do arquivo;
     fgets(linha, sizeof(linha), fp);
 	
     int i = 0;
@@ -129,7 +178,7 @@ Processo *LerDados(const char *NomeArquivo, int *quantidade) {
         if (token) {
             if (token[0] == '\"') {
                 token++;  // Remove a primeira aspas;
-                token[strlen(token) - 1] = '\0';  // Remove a √∫ltima aspas;
+                token[strlen(token) - 1] = '\0';  // Remove a ˙ltima aspas;
             }
             //printf("\nNumero: %s", token);
             strncpy(X[i].numero, token, 25);
@@ -188,14 +237,15 @@ void SalvarDados(const char *nome_arquivo, Processo *V, int size) {
         return;
     }
 
-    // Escreve o cabe√ßalho do CSV
+    // Escreve o cabeÁalho do CSV
     fprintf(arquivo, "id;numero;data_ajuizamento;id_classe;id_assunto;ano_eleicao\n");
 
     // Escreve os dados de cada processo no arquivo CSV
-    for (int i = 0; i < size; i++) {
-        // Escreve os dados de cada processo separados por v√≠rgulas
+    int i, j;
+    for (i = 0; i < size; i++) {
+        // Escreve os dados de cada processo separados por vÌrgulas
         fprintf(arquivo, "%d,\"%s\",%d-%d-%d %02d:%02d:%02d.000,", 
-                V[i].id, V[i].numero,
+                V[i].id, V[i].numero,   
                 V[i].data_ajuizamento.ano,
                 V[i].data_ajuizamento.mes,
                 V[i].data_ajuizamento.dia,
@@ -206,30 +256,36 @@ void SalvarDados(const char *nome_arquivo, Processo *V, int size) {
         // Escreve os ids das classes no arquivo
 
         fprintf(arquivo, V[i].qtd_classes > 1 ? "\"{" : "{");
-        for (int j = 0; j < V[i].qtd_classes; j++) {
+        for (j = 0; j < V[i].qtd_classes; j++) {
             fprintf(arquivo, "%d", V[i].id_classes[j]);
             if (j < V[i].qtd_classes - 1) {
-                fprintf(arquivo, ",");  // Se n√£o for o √∫ltimo, separa por espa√ßo
+                fprintf(arquivo, ",");  // Se n„o for o ˙ltimo, separa por espaÁo
             }
         }
         fprintf(arquivo, V[i].qtd_classes > 1 ? "}\"," : "},");
 
         // Escreve os ids dos assuntos no arquivo
         fprintf(arquivo, V[i].qtd_assuntos > 1 ? "\"{" : "{");
-        for (int j = 0; j < V[i].qtd_assuntos; j++) {
+        for (j = 0; j < V[i].qtd_assuntos; j++) {
             fprintf(arquivo, "%d", V[i].id_assuntos[j]);
             if (j < V[i].qtd_assuntos - 1) {
-                fprintf(arquivo, " ");  // Se n√£o for o √∫ltimo, separa por espa√ßo
+                fprintf(arquivo, " ");  // Se n„o for o ˙ltimo, separa por espaÁo
             }
         }
         fprintf(arquivo, V[i].qtd_assuntos > 1 ? "}\"," : "},");
 
-        // Escreve a quantidade de assuntos e o ano da elei√ß√£o
+        // Escreve a quantidade de assuntos e o ano da eleiÁ„o
         fprintf(arquivo, "%d\n", V[i].ano_eleicao);
     }
 
     fclose(arquivo);  // Fecha o arquivo
     printf("Dados salvos com sucesso no arquivo %s.\n", nome_arquivo);
+}
+
+void pause() {
+	printf("\nPressione ENTER para continuar...");
+	while (getchar() != '\n');
+	    getchar();
 }
 
 void extrairMultivalorados(char *str, int *values, int *count) {
@@ -251,7 +307,7 @@ void extrairData(char *str, Data *data) {
         data->min = min;
         data->sec = sec;
     } else {
-        printf("Formato de data/hora inv√°lido.\n");
+        printf("Formato de data/hora inv·lido.\n");
     }
 }
 
@@ -261,24 +317,24 @@ void swap(Processo *a, Processo *b) {
     *b = temp;
 }
 
-// Fun√ß√£o para comparar duas datas
+// FunÁ„o para comparar duas datas
 int compareDates(Data d1, Data d2) {
     if (d1.ano != d2.ano) {
-        return d1.ano - d2.ano;  // Retorna a diferen√ßa entre os anos
+        return d1.ano - d2.ano;  // Retorna a diferenÁa entre os anos
     }
     if (d1.mes != d2.mes) {
-        return d1.mes - d2.mes;  // Retorna a diferen√ßa entre os meses
+        return d1.mes - d2.mes;  // Retorna a diferenÁa entre os meses
     }
     if (d1.dia != d2.dia) {
-        return d1.dia - d2.dia;  // Retorna a diferen√ßa entre os dias
+        return d1.dia - d2.dia;  // Retorna a diferenÁa entre os dias
     }
     if (d1.hora != d2.hora) {
-        return d1.hora - d2.hora;  // Retorna a diferen√ßa entre as horas
+        return d1.hora - d2.hora;  // Retorna a diferenÁa entre as horas
     }
     if (d1.min != d2.min) {
-        return d1.min - d2.min;  // Retorna a diferen√ßa entre os minutos
+        return d1.min - d2.min;  // Retorna a diferenÁa entre os minutos
     }
-    return d1.sec - d2.sec;  // Retorna a diferen√ßa entre os segundos
+    return d1.sec - d2.sec;  // Retorna a diferenÁa entre os segundos
 }
 
 int partionByData(Processo *V, int inf, int sup) {
@@ -296,11 +352,11 @@ int partionByData(Processo *V, int inf, int sup) {
             j--;
         }
     }
-    return i;  // Retorna a posi√ß√£o para dividir o array
+    return i;  // Retorna a posiÁ„o para dividir o array
 }
 
 int partionById(Processo *V, int inf, int sup) {
-    int Pivot = V[(inf + sup) / 2].id;  // Usa o campo 'id' como piv√¥
+    int Pivot = V[(inf + sup) / 2].id;  // Usa o campo 'id' como pivÙ
     int i = inf;
     int j = sup;
 
@@ -314,7 +370,7 @@ int partionById(Processo *V, int inf, int sup) {
             j--;
         }
     }
-    return i;  // Retorna a posi√ß√£o para dividir o array
+    return i;  // Retorna a posiÁ„o para dividir o array
 }
 
 void qSortById(Processo *V, int inf, int sup) {
@@ -333,12 +389,12 @@ void qSortByData(Processo *V, int inf, int sup) {
 	}
 }
 
-// Fun√ß√£o de contar quantos processos est√£o vinculados a um determinado id_classe;
+// FunÁ„o de contar quantos processos est„o vinculados a um determinado id_classe;
 int countProcessosLinkedIdClasse(Processo *V, int size, int id_classe) {
-    int contador = 0;
+    int contador = 0, i, j;
     // Itera sobre todos os processos
-    for (int i = 0; i < size; i++) {
-        for (int j = 0; j < V[i].qtd_classes; j++) {
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < V[i].qtd_classes; j++) {
             if (V[i].id_classes[j] == id_classe) {
                 contador++;
                 break;
@@ -348,51 +404,50 @@ int countProcessosLinkedIdClasse(Processo *V, int size, int id_classe) {
     return contador;
 }
 
-// Fun√ß√£o de identificar quantos id_assuntos constam nos processos presentes na base de dados;
+// FunÁ„o de identificar quantos id_assuntos constam nos processos presentes na base de dados;
 int countIdAssuntos(Processo *V, int size) {
-    int contador = 0;
+    int contador = 0, i, j, k;
     int N[1000];
     // Itera sobre todos os processos;
-    for (int i = 0; size; i++) {
-        for (int j = 0; j < V[i].qtd_assuntos; j++) {
+    for (i = 0; i < size; i++) {
+        for (j = 0; j < V[i].qtd_assuntos; j++) {
             int encontrado = 0;
-            for (int k = 0; k < contador; k++) {
+            for (k = 0; k < contador; k++) {
                 if (N[k] == V[i].id_assuntos[j]) {
                     encontrado = 1;
                     break;
                 }
             }
 
-            // Se o id_assunto n√£o foi encontrado, adiciona ele ao vetor
+            // Se o id_assunto n„o foi encontrado, adiciona ele ao vetor
             if (!encontrado) {
                 N[contador] = V[i].id_assuntos[j];
                 contador++;
             }
         }
     }
-    
     return contador;
 }
 
-// Fun√ß√£o para listar todos os processos que est√£o vinculados a mais de um assunto
+// FunÁ„o para listar todos os processos que est„o vinculados a mais de um assunto
 void listProcessosHaveManyAssuntos(Processo *V, int size) {
+    int i;
     printf("Processos vinculados a mais de um assunto:\n");
-    // Itera sobre todos os processos;
-    for (int i = 0; size; i++) {
+    for (i = 0; i < size; i++) {
         if (V[i].qtd_assuntos > 1) {
             printf("Processo ID: %d, Numero: %s, Quantidade de Assuntos: %d\n", V[i].id, V[i].numero, V[i].qtd_assuntos);
         }
     }
 }
 
-// Fun√ß√£o para calcular a diferen√ßa de segundos entre duas datas (completa: ano, mes, dia, hora, min, sec)
-long calcular_diferenca_segundos(Data data_inicio, Data data_fim) {
+// FunÁ„o para calcular a diferenÁa de segundos entre duas datas (completa: ano, mes, dia, hora, min, sec)
+long calcDifSecs(Data data_inicio, Data data_fim) {
     struct tm inicio = {0};
     struct tm fim = {0};
 
-    // Preenche a struct tm com a data de in√≠cio
-    inicio.tm_year = data_inicio.ano - 1900;  // tm_year √© o ano desde 1900
-    inicio.tm_mon = data_inicio.mes - 1;      // tm_mon √© de 0 a 11
+    // Preenche a struct tm com a data de inÌcio
+    inicio.tm_year = data_inicio.ano - 1900;  // tm_year È o ano desde 1900
+    inicio.tm_mon = data_inicio.mes - 1;      // tm_mon È de 0 a 11
     inicio.tm_mday = data_inicio.dia;
     inicio.tm_hour = data_inicio.hora;
     inicio.tm_min = data_inicio.min;
@@ -410,13 +465,13 @@ long calcular_diferenca_segundos(Data data_inicio, Data data_fim) {
     time_t inicio_seconds = mktime(&inicio);
     time_t fim_seconds = mktime(&fim);
 
-    // Calcula a diferen√ßa em segundos
+    // Calcula a diferenÁa em segundos
     return difftime(fim_seconds, inicio_seconds);
 }
 
-// Fun√ß√£o para calcular a quantidade de dias de tramita√ß√£o de um processo espec√≠fico
-void calcular_tramitacao_por_id(Processo *processos, int size, int id_processo) {
-    // Obt√©m a data atual
+// FunÁ„o para calcular a quantidade de dias de tramitaÁ„o de um processo especÌfico
+void calcTramitacaoByID(Processo *processos, int size, int id_processo) {
+    // ObtÈm a data atual
     time_t t = time(NULL);
     struct tm data_atual = *localtime(&t);
 
@@ -426,26 +481,26 @@ void calcular_tramitacao_por_id(Processo *processos, int size, int id_processo) 
             data_atual.tm_hour, data_atual.tm_min, data_atual.tm_sec);
 
     // Procura pelo processo com o ID fornecido
-    int encontrado = 0;
-    for (int i = 0; size; i++) {
+    int encontrado = 0, i;
+    for (i = 0; size; i++) {
         if (processos[i].id == id_processo) {
-            // Calcula a diferen√ßa em segundos entre a data de ajuizamento e a data atual
-            long diferenca_segundos = calcular_diferenca_segundos(processos[i].data_ajuizamento, 
+            // Calcula a diferenÁa em segundos entre a data de ajuizamento e a data atual
+            long diferenca_segundos = calcDifSecs(processos[i].data_ajuizamento, 
                 (Data){data_atual.tm_year + 1900, data_atual.tm_mon + 1, data_atual.tm_mday, 
                        data_atual.tm_hour, data_atual.tm_min, data_atual.tm_sec});
 
-            // Converte a diferen√ßa de segundos para dias, anos, meses, horas, minutos e segundos
+            // Converte a diferenÁa de segundos para dias, anos, meses, horas, minutos e segundos
             int dias_totais = diferenca_segundos / (60 * 60 * 24);
             int anos = dias_totais / 365;  // Considera 365 dias por ano
-            int meses = (dias_totais % 365) / 30;  // Aproxima√ß√£o: 30 dias por m√™s
+            int meses = (dias_totais % 365) / 30;  // AproximaÁ„o: 30 dias por mÍs
             int dias = (dias_totais % 365) % 30;
             int horas = (diferenca_segundos % (60 * 60 * 24)) / (60 * 60);
             int minutos = (diferenca_segundos % (60 * 60)) / 60;
             int segundos = diferenca_segundos % 60;
 
-            // Exibe a quantidade de tempo de tramita√ß√£o
+            // Exibe a quantidade de tempo de tramitaÁ„o
             printf("Processo ID: %d, Numero: %s\n", processos[i].id, processos[i].numero);
-            printf("Tempo de tramita√ß√£o: %d anos, %d meses, %d dias, %d horas, %d minutos, %d segundos\n\n", 
+            printf("Tempo de tramitaÁ„o: %d anos, %d meses, %d dias, %d horas, %d minutos, %d segundos\n\n", 
                     anos, meses, dias, horas, minutos, segundos);
 
             encontrado = 1;
@@ -454,6 +509,6 @@ void calcular_tramitacao_por_id(Processo *processos, int size, int id_processo) 
     }
 
     if (!encontrado) {
-        printf("Processo com ID %d n√£o encontrado.\n", id_processo);
+        printf("Processo com ID %d n„o encontrado.\n", id_processo);
     }
 }
